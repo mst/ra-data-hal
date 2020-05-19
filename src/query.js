@@ -14,8 +14,8 @@ const flatten = (object, prefix = '') => {
 export const buildPaginationParams = pagination => {
   if (pagination && pagination.page && pagination.perPage) {
     return {
-      page: pagination.page,
-      perPage: pagination.perPage
+      page: pagination.page-1,
+      size: pagination.perPage
     }
   }
 
@@ -25,7 +25,7 @@ export const buildPaginationParams = pagination => {
 export const buildSortParams = sort => {
   if (sort && sort.field && sort.order) {
     return {
-      sort: JSON.stringify([sort.field, sort.order.toLowerCase()])
+      sort: sort.field+","+sort.order.toLowerCase()
     }
   }
 

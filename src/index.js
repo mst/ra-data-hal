@@ -30,7 +30,8 @@ const log = (request, result) => {
   }
 }
 
-const getId = id => (id && id.includes(':') ? last(split(':', id)) : id)
+//const getId = id => (id && id.includes(':') ? last(split(':', id)) : id)
+const getId = id => id 
 
 const navToResult = async (navigator, method = 'get', ...args) => {
   const resourceResult = await navigator[method](...args)
@@ -49,10 +50,8 @@ const navToResult = async (navigator, method = 'get', ...args) => {
   return resourceResult
 }
 
-const getSingleResult = async (navigator, resourceName, id) => {
-  return navToResult(navigator, 'get', inflection.singularize(resourceName), {
-    id: id
-  })
+const getSingleResult = async (navigator, resourceName, url) => {
+  return navToResult(navigator, 'getUrl', url)
 }
 
 const navToResource = async (navigator, method = 'get', ...args) => {
@@ -79,11 +78,10 @@ const handleRequest = async (apiUrl, type, resourceName, params) => {
             qs.stringify(params, { arrayFormat: 'repeat' })
         }
       )
-      const total = resource.getProperty(
-        `total${capitalizeFirstLetter(resourceName)}`
-      )
-      const data = resource.getResource(resourceName).map(r => r.toObject())
-
+      const total = resource.getProperty('page').totalElements;
+      const data = resource.getResource(resourceName).map(r => Object.assign({}, {id: r.toObject()._links.self.href}, r.toObject()));
+      console.log(resource.getResource(resourceName));
+      console.log(data);
       return { data, total }
     }
 
@@ -98,40 +96,40 @@ const handleRequest = async (apiUrl, type, resourceName, params) => {
     }
 
     case CREATE: {
-      const body = assoc('id', getId(path(['data', 'id'], params)), params.data)
-      const resource = await navToResource(
-        discoveryResult,
-        'post',
-        resourceName,
-        body,
-        body
-      )
-      const data = resource.toObject()
+      var postResult = (await discoveryResult.post("users", params.data))
+      console.log(postResult)
+
+
+      console.log(postResult.location())
+      console.log(postResult.resource())
+
+      const data = postResult.resource().toObject()
 
       return { data }
     }
 
     case GET_MANY: {
-      const ids = params.ids.map(getId)
+      const urls= params.ids.map(getId)
 
+      // return with id => url, must be consistent with the requested url
       const data = await Promise.all(
-        ids.map(async id =>
-          (await getSingleResource(
+        urls.map(async url =>
+          Object.assign({}, {id:url},(await getSingleResource(
             discoveryResult,
             resourceName,
-            id
-          )).toObject()
+            url 
+          )).toObject())
         )
       )
-
+      console.log(data)
       return { data, total: data.length }
     }
 
     case GET_MANY_REFERENCE: {
       const resource = await navToResource(
         discoveryResult,
-        'get',
-        resourceName,
+        'getUrl',
+        params.id,
         {
           ...buildReactAdminParams(params),
           [params.target]: params.id
@@ -141,9 +139,10 @@ const handleRequest = async (apiUrl, type, resourceName, params) => {
             qs.stringify(params, { arrayFormat: 'repeat' })
         }
       )
+
       const data = resource
         .getResource(resourceName)
-        .map(resource => resource.toObject())
+        .map(resource => Object.assign({}, {id: resource.toObject()._links.self.href},resource.toObject()))
 
       const total = resource.getProperty(
         `total${capitalizeFirstLetter(resourceName)}`
@@ -156,9 +155,8 @@ const handleRequest = async (apiUrl, type, resourceName, params) => {
       const body = assoc('id', getId(path(['data', 'id'], params)), params.data)
       const resource = await navToResource(
         discoveryResult,
-        'put',
-        inflection.singularize(resourceName),
-        body,
+        'putUrl',
+        params.data._links.self.href,
         body
       )
       const data = resource.toObject()
